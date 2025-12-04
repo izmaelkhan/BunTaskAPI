@@ -1,0 +1,19 @@
+{
+  "name": "bun-task-api",
+  "version": "1.0.0",
+  "description": "AI-powered task automation API implemented with Bun + SQLite + OpenAI",
+  "main": "src/server.ts",
+  "scripts": {
+    "start": "bun run src/server.ts",
+    "dev": "bun --watch src/server.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "gemini": "^7.5.2",
+    "openai": "^6.9.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.3",
+    "@types/node": "^20.0.0"
+  }
+}

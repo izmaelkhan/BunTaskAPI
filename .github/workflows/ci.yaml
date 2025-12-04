@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v1
+      with:
+        bun-version: 'latest'
+    - name: Install deps
+      run: bun install
+    - name: Run tests
+      run: bun test
+    - name: Lint (optional)
+      run: echo "Add linting if desired"

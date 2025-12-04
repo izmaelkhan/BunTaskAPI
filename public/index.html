@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Bun Task API — Demo</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 760px; margin: 40px auto; }
+    input, textarea, button { padding: 8px; font-size: 16px; margin-top: 4px; width: 100%; box-sizing: border-box; }
+    textarea { resize: vertical; }
+    .task { border-bottom: 1px solid #eee; padding: 8px 0; }
+    .summary { color: #444; margin-top: 6px; font-style: italic; }
+    .description { color: #666; margin-top: 4px; }
+    .loading { color: blue; font-style: italic; }
+  </style>
+</head>
+<body>
+  <h1>Bun Task API — Demo</h1>
+  <p>Create a task with title & description; an AI generates a short summary automatically.</p>
+
+  <div>
+    <input id="title" placeholder="Task title" />
+    <textarea id="description" placeholder="Task description" rows="3"></textarea>
+    <button id="create">Create</button>
+  </div>
+
+  <h2>Tasks</h2>
+  <div id="tasks"></div>
+
+  <script>
+    async function fetchTasks() {
+      const res = await fetch('/tasks');
+      const json = await res.json();
+      const container = document.getElementById('tasks');
+      container.innerHTML = '';
+
+      for (const t of json) {
+        const el = document.createElement('div');
+        el.className = 'task';
+        el.innerHTML = `
+          <strong>#${t.id}</strong> ${t.title}
+          ${t.description ? `<div class="description">${t.description}</div>` : ''}
+          <div class="summary" id="summary-${t.id}">${t.summary ?? '— awaiting summary —'}</div>
+          <button class="refresh-summary" data-id="${t.id}">Refresh Summary</button>
+        `;
+        container.appendChild(el);
+      }
+
+      // Add event listeners for refresh buttons
+      document.querySelectorAll('.refresh-summary').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-id');
+          const summaryDiv = document.getElementById(`summary-${id}`);
+          summaryDiv.innerHTML = '<span class="loading">Refreshing summary...</span>';
+
+          await fetch(`/task/${id}/refresh-summary`, { method: 'POST' });
+          fetchTasks(); // Refresh tasks after summary update
+        });
+      });
+    }
+
+    document.getElementById('create').addEventListener('click', async () => {
+      const title = document.getElementById('title').value.trim();
+      const description = document.getElementById('description').value.trim();
+
+      if (!title) return alert('Enter a title');
+
+      await fetch('/task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description })
+      });
+
+      document.getElementById('title').value = '';
+      document.getElementById('description').value = '';
+
+      await fetchTasks();
+
+      // Poll for updates to get summary
+      setTimeout(fetchTasks, 1000);
+      setTimeout(fetchTasks, 3000);
+      setTimeout(fetchTasks, 7000);
+    });
+
+    fetchTasks();
+    setInterval(fetchTasks, 5000);
+  </script>
+</body>
+</html>

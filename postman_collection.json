@@ -1,0 +1,42 @@
+{
+  "info": {
+    "name": "Bun Task API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "List tasks",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:3000/tasks",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["tasks"]
+        }
+      }
+    },
+    {
+      "name": "Create task",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\":\"Prepare monthly finance report\"}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/task",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["task"]
+        }
+      }
+    }
+  ]
+}
