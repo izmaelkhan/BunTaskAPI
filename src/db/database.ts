@@ -2,7 +2,7 @@
 // ---------------------------------------------------------
 // RESPONSIBILITY:
 // Provides SQLite DB access and CRUD operations for tasks.
-// Tasks now include `summary` field.
+// Tasks now include `summary` field + search + pagination.
 // ---------------------------------------------------------
 
 import { Database } from "bun:sqlite";
@@ -31,7 +31,7 @@ export function createTask(title: string, description: string, summary: string |
   return result.lastInsertRowid;
 }
 
-// Get all tasks
+// Get all tasks (not paginated)
 export function getTasks() {
   return db
     .query("SELECT id, title, description, summary, created_at FROM tasks ORDER BY id DESC")
@@ -45,6 +45,64 @@ export function getTask(id: number) {
       FROM tasks WHERE id = ?
   `);
   return stmt.get(id);
+}
+
+// SEARCH tasks by title, description, summary
+export function searchTasks(query: string) {
+  const like = `%${query}%`;
+
+  return db
+    .query(
+      `
+      SELECT id, title, description, summary, created_at
+      FROM tasks
+      WHERE title LIKE ?
+         OR description LIKE ?
+         OR summary LIKE ?
+      ORDER BY id DESC
+    `
+    )
+    .all(like, like, like);
+}
+
+/* ------------------------------------------------------
+   PAGINATION — NEW
+------------------------------------------------------ */
+
+// Get paginated tasks
+export function getTasksPaginated(page: number, limit: number) {
+  const offset = (page - 1) * limit;
+
+  return db
+    .query(
+      `
+      SELECT id, title, description, summary, created_at
+      FROM tasks
+      ORDER BY id DESC
+      LIMIT ? OFFSET ?
+    `
+    )
+    .all(limit, offset);
+}
+
+// Search + pagination
+export function searchTasksPaginated(query: string, page: number, limit: number) {
+  const like = `%${query}%`;
+  const offset = (page - 1) * limit;
+
+  return db
+    .query(
+      `
+      SELECT id, title, description, summary, created_at
+      FROM tasks
+      WHERE title LIKE ?
+         OR description LIKE ?
+         OR summary LIKE ?
+      ORDER BY id DESC
+      LIMIT ? OFFSET ?
+    `
+    )
+    .all(like, like, like, limit, offset);
 }
 
 // Update a task (including summary)

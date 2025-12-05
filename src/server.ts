@@ -1,15 +1,23 @@
-import { createTask, getTasks, getTask, updateTask, deleteTask } from "./db/database";
+// src/server.ts
+
+import {
+  createTask,
+  getTasksPaginated,
+  searchTasksPaginated,
+  getTask,
+  updateTask,
+  deleteTask
+} from "./db/database";
+
 import { generateSummary } from "./gemini";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
 const server = Bun.serve({
-  port: 3000, 
-  idleTimeout: 120, // 120 seconds
-  async fetch(req) { // Handle incoming requests
+  port: 3000,
+  idleTimeout: 120,
+
+  async fetch(req) {
     const url = new URL(req.url);
     const pathname = url.pathname;
-    const id = Number(url.searchParams.get("id"));
 
     try {
       // Serve index.html
@@ -17,65 +25,60 @@ const server = Bun.serve({
         return new Response(Bun.file("public/index.html"));
       }
 
-      // GET all tasks
+      // GET /tasks?page=1&limit=20&query=abc
       if (req.method === "GET" && pathname === "/tasks") {
-        return new Response(JSON.stringify(getTasks()), { status: 200 });
+        const page = Number(url.searchParams.get("page") ?? "1");
+        const limit = Number(url.searchParams.get("limit") ?? "20");
+        const query = url.searchParams.get("query") ?? "";
+
+        const tasks = query.trim()
+          ? searchTasksPaginated(query, page, limit)
+          : getTasksPaginated(page, limit);
+
+        return new Response(JSON.stringify(tasks), { status: 200 });
       }
 
-      // POST create new task
+      // POST /task — create task
       if (req.method === "POST" && pathname === "/task") {
         const { title, description } = await req.json();
         let summary = "— summary unavailable —";
+
         try {
           summary = await generateSummary(title, description);
         } catch (err) {
           console.error("Gemini error:", err);
         }
-        const newId = createTask(title, description, summary);
-        return new Response(JSON.stringify({ id: newId, summary }), { status: 201 });
+
+        const id = createTask(title, description, summary);
+        return new Response(JSON.stringify({ id, summary }), { status: 201 });
       }
 
-      // POST refresh summary for a task
-      if (req.method === "POST" && pathname.startsWith("/task/") && pathname.endsWith("/refresh-summary")) {
-        const taskId = Number(pathname.split("/")[2]);
-        const task = getTask(taskId) as { title: string; description: string } | null;
-        if (!task) return new Response("Task not found", { status: 404 });
-
-        let summary = "— summary unavailable —";
-        try {
-          summary = await generateSummary(task.title, task.description);
-        } catch (err) {
-          console.error("Gemini error:", err);
-        }
-
-        updateTask(taskId, task.title, task.description, summary);
-        return new Response(JSON.stringify({ id: taskId, summary }), { status: 200 });
-      }
-
-      // PUT update task
-      if (req.method === "PUT" && pathname === "/task" && id) {
-        const { title, description } = await req.json();
-        let summary = "— summary unavailable —";
-        try {
-          summary = await generateSummary(title, description);
-        } catch (err) {
-          console.error("Gemini error:", err);
-        }
-        updateTask(id, title, description, summary);
-        return new Response(JSON.stringify({ updated: id, summary }), { status: 200 });
-      }
-
-      // DELETE task
-      if (req.method === "DELETE" && pathname === "/task" && id) {
-        deleteTask(id);
-        return new Response(JSON.stringify({ deleted: id }), { status: 200 });
-      }
+      // POST /task/:id/refresh-summary
+            if (req.method === "POST" && pathname.endsWith("/refresh-summary")) {
+              const id = Number(pathname.split("/")[2]);
+              type Task = { id: number; title: string; description: string; summary?: string };
+              const task = getTask(id) as Task | undefined;
+      
+              if (!task) return new Response("Not Found", { status: 404 });
+      
+              let newSummary = "— summary unavailable —";
+              try {
+                newSummary = await generateSummary(task.title, task.description);
+              } catch (err) {
+                console.error(err);
+              }
+      
+              updateTask(id, task.title, task.description, newSummary);
+      
+              return new Response(JSON.stringify({ id, summary: newSummary }), { status: 200 });
+            }
 
       return new Response("Not Found", { status: 404 });
+
     } catch (err) {
       return new Response(JSON.stringify({ error: (err as Error).message }), { status: 500 });
     }
-  },
+  }
 });
 
 console.log("Server running on http://localhost:3000");

@@ -4,17 +4,74 @@
   <meta charset="utf-8" />
   <title>Bun Task API — Demo</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 760px; margin: 40px auto; }
-    input, textarea, button { padding: 8px; font-size: 16px; margin-top: 4px; width: 100%; box-sizing: border-box; }
+    body { 
+      font-family: Arial, sans-serif; 
+      max-width: 900px; 
+      margin: 40px auto; 
+    }
+
+    /* Header container */
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    /* Search field on the right */
+    #search {
+      width: 260px;
+      padding: 8px;
+      font-size: 16px;
+    }
+
+    input, textarea, button { 
+      padding: 8px; 
+      font-size: 16px; 
+      margin-top: 4px; 
+      width: 100%; 
+      box-sizing: border-box; 
+    }
+
     textarea { resize: vertical; }
-    .task { border-bottom: 1px solid #eee; padding: 8px 0; }
-    .summary { color: #444; margin-top: 6px; font-style: italic; }
-    .description { color: #666; margin-top: 4px; }
-    .loading { color: blue; font-style: italic; }
+
+    .task { 
+      border-bottom: 1px solid #eee; 
+      padding: 8px 0; 
+    }
+
+    .summary { 
+      color: #444; 
+      margin-top: 6px; 
+      font-style: italic; 
+    }
+
+    .description { 
+      color: #666; 
+      margin-top: 4px; 
+    }
+
+    .loading { 
+      color: blue; 
+      font-style: italic; 
+    }
+
+    #loadMore { 
+      margin-top: 12px; 
+      padding: 10px; 
+      font-size: 16px; 
+      width: 100%; 
+    }
   </style>
 </head>
 <body>
-  <h1>Bun Task API — Demo</h1>
+
+  <!-- HEADER WITH SEARCH BAR -->
+  <div class="header-bar">
+    <h1>Bun Task API — Demo</h1>
+    <input id="search" placeholder="Search tasks..." />
+  </div>
+
   <p>Create a task with title & description; an AI generates a short summary automatically.</p>
 
   <div>
@@ -25,64 +82,92 @@
 
   <h2>Tasks</h2>
   <div id="tasks"></div>
+  <!-- <button id="loadMore">Load More</button> -->
 
   <script>
-    async function fetchTasks() {
-      const res = await fetch('/tasks');
-      const json = await res.json();
-      const container = document.getElementById('tasks');
-      container.innerHTML = '';
+  let currentPage = 1;
+  const limit = 3;   // load only 3 items at first load
+  let loading = false;
 
-      for (const t of json) {
-        const el = document.createElement('div');
-        el.className = 'task';
-        el.innerHTML = `
-          <strong>#${t.id}</strong> ${t.title}
-          ${t.description ? `<div class="description">${t.description}</div>` : ''}
-          <div class="summary" id="summary-${t.id}">${t.summary ?? '— awaiting summary —'}</div>
-          <button class="refresh-summary" data-id="${t.id}">Refresh Summary</button>
-        `;
-        container.appendChild(el);
-      }
+  async function fetchTasks(query = "", page = 1) {
+    loading = true;
 
-      // Add event listeners for refresh buttons
-      document.querySelectorAll('.refresh-summary').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const id = btn.getAttribute('data-id');
-          const summaryDiv = document.getElementById(`summary-${id}`);
-          summaryDiv.innerHTML = '<span class="loading">Refreshing summary...</span>';
+    const url = `/tasks?page=${page}&limit=${limit}` +
+      (query ? `&query=${encodeURIComponent(query)}` : "");
 
-          await fetch(`/task/${id}/refresh-summary`, { method: 'POST' });
-          fetchTasks(); // Refresh tasks after summary update
-        });
-      });
+    const res = await fetch(url);
+    const json = await res.json();
+
+    const container = document.getElementById("tasks");
+    if (page === 1) container.innerHTML = ""; // reset on new search
+
+    for (const t of json) {
+      const el = document.createElement("div");
+      el.className = "task";
+      el.innerHTML = `
+        <strong>#${t.id}</strong> ${t.title}
+        ${t.description ? `<div class="description">${t.description}</div>` : ''}
+        <div class="summary" id="summary-${t.id}">${t.summary ?? "— awaiting summary —"}</div>
+        <button class="refresh-summary" data-id="${t.id}">Refresh Summary</button>
+      `;
+      container.appendChild(el);
     }
 
-    document.getElementById('create').addEventListener('click', async () => {
-      const title = document.getElementById('title').value.trim();
-      const description = document.getElementById('description').value.trim();
+    // Add refresh summary events
+    document.querySelectorAll(".refresh-summary").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-id");
+        const summaryDiv = document.getElementById(`summary-${id}`);
+        summaryDiv.innerHTML = '<span class="loading">Refreshing summary...</span>';
 
-      if (!title) return alert('Enter a title');
-
-      await fetch('/task', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description })
+        await fetch(`/task/${id}/refresh-summary`, { method: "POST" });
+        fetchTasks(document.getElementById("search").value, 1);
       });
-
-      document.getElementById('title').value = '';
-      document.getElementById('description').value = '';
-
-      await fetchTasks();
-
-      // Poll for updates to get summary
-      setTimeout(fetchTasks, 1000);
-      setTimeout(fetchTasks, 3000);
-      setTimeout(fetchTasks, 7000);
     });
 
-    fetchTasks();
-    setInterval(fetchTasks, 5000);
-  </script>
+    loading = false;
+  }
+
+  // Live search resets pagination
+  document.getElementById("search").addEventListener("input", e => {
+    currentPage = 1;
+    fetchTasks(e.target.value.trim(), currentPage);
+  });
+
+  document.getElementById("create").addEventListener("click", async () => {
+    const title = document.getElementById("title").value.trim();
+    const description = document.getElementById("description").value.trim();
+
+    if (!title) return alert("Enter a title");
+
+    await fetch("/task", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, description })
+    });
+
+    document.getElementById("title").value = "";
+    document.getElementById("description").value = "";
+
+    currentPage = 1;
+    await fetchTasks();
+  });
+
+  // INFINITE SCROLL
+  window.addEventListener("scroll", () => {
+    if (loading) return;
+
+    // If scrolled near bottom:
+    if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 150) {
+      currentPage++;
+      fetchTasks(document.getElementById("search").value, currentPage);
+    }
+  });
+
+  // Initial load
+  fetchTasks();
+</script>
+
+
 </body>
 </html>
