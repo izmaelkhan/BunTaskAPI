@@ -1,5 +1,3 @@
-// src/server.ts
-
 import {
   createTask,
   getTasksPaginated,
@@ -54,29 +52,38 @@ const server = Bun.serve({
       }
 
       // POST /task/:id/refresh-summary
-            if (req.method === "POST" && pathname.endsWith("/refresh-summary")) {
-              const id = Number(pathname.split("/")[2]);
-              type Task = { id: number; title: string; description: string; summary?: string };
-              const task = getTask(id) as Task | undefined;
-      
-              if (!task) return new Response("Not Found", { status: 404 });
-      
-              let newSummary = "— summary unavailable —";
-              try {
-                newSummary = await generateSummary(task.title, task.description);
-              } catch (err) {
-                console.error(err);
-              }
-      
-              updateTask(id, task.title, task.description, newSummary);
-      
-              return new Response(JSON.stringify({ id, summary: newSummary }), { status: 200 });
-            }
+      if (req.method === "POST" && pathname.endsWith("/refresh-summary")) {
+        const id = Number(pathname.split("/")[2]);
+        const task = getTask(id) as { title: string; description: string } | undefined;
+
+        if (!task) return new Response("Not Found", { status: 404 });
+
+        let newSummary = "— summary unavailable —";
+        try {
+          newSummary = await generateSummary(task.title, task.description);
+        } catch (err) {
+          console.error(err);
+        }
+
+        updateTask(id, task.title, task.description, newSummary);
+
+        return new Response(JSON.stringify({ id, summary: newSummary }), { status: 200 });
+      }
+
+      // DELETE /task/:id
+      if (req.method === "DELETE" && pathname.startsWith("/task/")) {
+        const id = Number(pathname.split("/")[2]);
+        deleteTask(id);
+        return new Response("Deleted", { status: 200 });
+      }
 
       return new Response("Not Found", { status: 404 });
 
     } catch (err) {
-      return new Response(JSON.stringify({ error: (err as Error).message }), { status: 500 });
+      return new Response(
+        JSON.stringify({ error: (err as Error).message }),
+        { status: 500 }
+      );
     }
   }
 });
