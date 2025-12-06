@@ -19,9 +19,12 @@ const server = Bun.serve({
 
     try {
       // Serve index.html
-      if (pathname === "/") {
-        return new Response(Bun.file("public/index.html"));
-      }
+      if (url.pathname === "/" || url.pathname.startsWith("/public/") === false) {
+      try {
+        const file = Bun.file(`./public${url.pathname === "/" ? "/index.html" : url.pathname}`);
+        if (await file.exists()) return new Response(file);
+      } catch {}
+    }
 
       // GET /tasks?page=1&limit=20&query=abc
       if (req.method === "GET" && pathname === "/tasks") {
@@ -68,6 +71,25 @@ const server = Bun.serve({
         updateTask(id, task.title, task.description, newSummary);
 
         return new Response(JSON.stringify({ id, summary: newSummary }), { status: 200 });
+      }
+      // PUT /task/:id  — update task
+      if (req.method === "PUT" && pathname.startsWith("/task/")) {
+        const id = Number(pathname.split("/")[2]);
+        const data = await req.json();
+        const existing = getTask(id) as { title: string; description: string; summary?: string } | undefined;
+
+        if (!existing) {
+          return new Response("Not Found", { status: 404 });
+        }
+
+        updateTask(
+          id,
+          data.title ?? existing.title,
+          data.description ?? existing.description,
+          existing.summary
+        );
+
+        return new Response(JSON.stringify({ updated: true }), { status: 200 });
       }
 
       // DELETE /task/:id
