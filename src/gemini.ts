@@ -41,9 +41,9 @@ Title: ${title}
 Description: ${description}
 
 Requirements:
-- Write at least 3 paragraphs.
+- Write at least 2 paragraphs.
 - Each paragraph should be 3–4 sentences.
-- Maintain a clear educational tone.
+- Maintain a clear educational tone. Precise and practical.
 - Avoid bullet points.
                   `
                 }

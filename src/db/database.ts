@@ -1,16 +1,15 @@
-// src/database.ts
-// ---------------------------------------------------------
-// RESPONSIBILITY:
-// Provides SQLite DB access and CRUD operations for tasks.
-// Tasks now include `summary` field + search + pagination.
-// ---------------------------------------------------------
+// -----------------------------------------------------------------------------
+// DATABASE MODULE WITH updated_at SUPPORT
+// -----------------------------------------------------------------------------
 
 import { Database } from "bun:sqlite";
 
-// Open or create database
 export const db = new Database("database.db");
 
-// Create table with summary column if not exists
+// -----------------------------------------------------------------------------
+// Create tasks table (initial columns only).
+// No updated_at here because old installations already have this table.
+// -----------------------------------------------------------------------------
 db.run(`
   CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,102 +20,132 @@ db.run(`
   )
 `);
 
-// Insert a new task
+
+
+// -----------------------------------------------------------------------------
+// SAFE MIGRATION: Add updated_at column if it does not exist.
+// This does NOT destroy any existing data.
+// -----------------------------------------------------------------------------
+const columns = db.query(`PRAGMA table_info(tasks)`).all();
+const hasUpdatedAt = columns.some((c: any) => c.name === "updated_at");
+
+if (!hasUpdatedAt) {
+  db.run(`ALTER TABLE tasks ADD COLUMN updated_at TEXT`);
+  console.log("Database migrated: added updated_at column.");
+}
+
+// -----------------------------------------------------------------------------
+// createTask() — when creating a new task, updated_at stays NULL.
+// -----------------------------------------------------------------------------
+export function nowPakistanTime() {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Karachi" })).toISOString();
+}
 export function createTask(title: string, description: string, summary: string | null = null) {
   const stmt = db.prepare(`
-    INSERT INTO tasks (title, description, summary, created_at)
-    VALUES (?, ?, ?, datetime('now'))
+    INSERT INTO tasks (title, description, summary, created_at, updated_at)
+    VALUES (?, ?, ?, ? , ?)
   `);
-  const result = stmt.run(title, description, summary);
+  const now=nowPakistanTime();
+  const result = stmt.run(title, description, summary, now, null);
   return result.lastInsertRowid;
 }
 
-// Get all tasks (not paginated)
+// -----------------------------------------------------------------------------
+// getTasks() — return created_at + updated_at
+// -----------------------------------------------------------------------------
 export function getTasks() {
   return db
-    .query("SELECT id, title, description, summary, created_at FROM tasks ORDER BY id DESC")
+    .query(`
+      SELECT id, title, description, summary, created_at, updated_at
+      FROM tasks
+      ORDER BY id DESC
+    `)
     .all();
 }
 
-// Get a single task by ID
+// -----------------------------------------------------------------------------
+// getTask(id)
+// -----------------------------------------------------------------------------
 export function getTask(id: number) {
-  const stmt = db.prepare(`
-      SELECT id, title, description, summary, created_at
+  return db
+    .query(`
+      SELECT id, title, description, summary, created_at, updated_at
       FROM tasks WHERE id = ?
-  `);
-  return stmt.get(id);
+    `)
+    .get(id);
 }
 
-// SEARCH tasks by title, description, summary
+// -----------------------------------------------------------------------------
+// searchTasks()
+// -----------------------------------------------------------------------------
 export function searchTasks(query: string) {
   const like = `%${query}%`;
-
   return db
-    .query(
-      `
-      SELECT id, title, description, summary, created_at
+    .query(`
+      SELECT id, title, description, summary, created_at, updated_at
       FROM tasks
       WHERE title LIKE ?
          OR description LIKE ?
          OR summary LIKE ?
       ORDER BY id DESC
-    `
-    )
+    `)
     .all(like, like, like);
 }
 
-/* ------------------------------------------------------
-   PAGINATION — NEW
------------------------------------------------------- */
-
-// Get paginated tasks
+// -----------------------------------------------------------------------------
+// Pagination
+// -----------------------------------------------------------------------------
 export function getTasksPaginated(page: number, limit: number) {
   const offset = (page - 1) * limit;
 
   return db
-    .query(
-      `
-      SELECT id, title, description, summary, created_at
+    .query(`
+      SELECT id, title, description, summary, created_at, updated_at
       FROM tasks
       ORDER BY id DESC
       LIMIT ? OFFSET ?
-    `
-    )
+    `)
     .all(limit, offset);
 }
 
-// Search + pagination
 export function searchTasksPaginated(query: string, page: number, limit: number) {
   const like = `%${query}%`;
   const offset = (page - 1) * limit;
 
   return db
-    .query(
-      `
-      SELECT id, title, description, summary, created_at
+    .query(`
+      SELECT id, title, description, summary, created_at, updated_at
       FROM tasks
       WHERE title LIKE ?
          OR description LIKE ?
          OR summary LIKE ?
       ORDER BY id DESC
       LIMIT ? OFFSET ?
-    `
-    )
+    `)
     .all(like, like, like, limit, offset);
 }
 
-// Update a task (including summary)
+// -----------------------------------------------------------------------------
+// updateTask() — IMPORTANT
+// Automatically sets updated_at = NOW.
+// -----------------------------------------------------------------------------
 export function updateTask(id: number, title: string, description: string, summary?: string) {
   const stmt = db.prepare(`
     UPDATE tasks
-    SET title = ?, description = ?, summary = ?
+    SET title = ?, 
+        description = ?, 
+        summary = ?, 
+        updated_at = ?
     WHERE id = ?
   `);
-  return stmt.run(title, description, summary ?? null, id);
+  const now=nowPakistanTime();
+
+  return stmt.run(title, description, summary ?? null, now, id);
 }
 
-// Delete a task
+// -----------------------------------------------------------------------------
+// deleteTask()
+// -----------------------------------------------------------------------------
 export function deleteTask(id: number) {
-  const stmt = db.prepare(`DELETE FROM tasks WHERE id = ?`);
-  return stmt.run(id);
+  return db.prepare(`DELETE FROM tasks WHERE id = ?`).run(id);
 }
